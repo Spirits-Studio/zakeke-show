@@ -10,7 +10,7 @@
     "react-scripts": "5.0.1",
     "react-spinners": "^0.17.0",
     "styled-components": "^6.1.1",
-    "typescript": "^4",
+    "typescript": "^5",
     "zakeke-configurator-react": "0.1.280-prod",
     "zustand": "^5.0.7"
   },
