@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useCallback, useEffect, useRef } from 'react';
+import React, { FunctionComponent, useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { ZakekeEnvironment, ZakekeViewer, ZakekeProvider, useZakeke } from 'zakeke-configurator-react';
 
@@ -71,6 +71,94 @@ const ViewerPanel = styled.div`
 
 const zakekeEnvironment = new ZakekeEnvironment();
 
+const __IS_SAFARI__ = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|crios|android/i.test(navigator.userAgent);
+
+const ReadySignal: FunctionComponent<{}> = () => {
+  const { isAssetsLoading, isSceneLoading, isViewerReady, product, groups, price } = useZakeke();
+  const firstRenderPostedRef = useRef(false);
+  const readyAckedRef = useRef(false);
+  const readyMsgIdRef = useRef<string>('');
+  if (!readyMsgIdRef.current) {
+    const t = Date.now();
+    const r = Math.floor(Math.random() * 1e9);
+    readyMsgIdRef.current = `ready-${t}-${r}`;
+  }
+  const readyRetryTimer1 = useRef<number | null>(null);
+  const readyRetryTimer2 = useRef<number | null>(null);
+
+  const [safariGraceReady, setSafariGraceReady] = useState(false);
+  useEffect(() => {
+    if (!__IS_SAFARI__) return;
+    const t = window.setTimeout(() => setSafariGraceReady(true), 6000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const payload = e.data;
+      if (payload && typeof payload === 'object' && payload.customMessageType === 'firstRenderAck') {
+        const cid = payload?.meta?.correlationId || payload?.correlationId;
+        if (cid && cid === readyMsgIdRef.current) {
+          readyAckedRef.current = true;
+          if (readyRetryTimer1.current) { clearTimeout(readyRetryTimer1.current as any); readyRetryTimer1.current = null; }
+          if (readyRetryTimer2.current) { clearTimeout(readyRetryTimer2.current as any); readyRetryTimer2.current = null; }
+        }
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  useEffect(() => {
+    const assetsOk = isAssetsLoading === false && isSceneLoading === false;
+    const viewerOk = typeof isViewerReady === 'boolean'
+      ? (__IS_SAFARI__ ? isViewerReady === true : isViewerReady === true)
+      : true;
+    const basicsOk = !!product && Array.isArray(groups) && groups.length > 0;
+    const pricedOk = price != null;
+    let isReady = assetsOk && viewerOk && basicsOk && pricedOk;
+    if (__IS_SAFARI__ && !isReady) {
+      const almostReady = assetsOk && basicsOk && pricedOk && !viewerOk;
+      if (almostReady && safariGraceReady) {
+        isReady = true;
+      }
+    }
+
+    if (isReady && !firstRenderPostedRef.current) {
+      firstRenderPostedRef.current = true;
+
+      const correlationId = readyMsgIdRef.current;
+      const basePayload = { customMessageType: 'firstRender', message: { closeLoadingScreen: true }, meta: { iframeOrigin: window.location.origin, correlationId } } as const;
+
+      const send = (stage: 'immediate' | 'retry1' | 'retry2') => {
+        try {
+          window.parent?.postMessage(basePayload, '*');
+          window.top?.postMessage(basePayload, '*');
+          // console.log('[READY EFFECT] postMessage:', stage, basePayload.meta);
+        } catch (e) {
+          console.error('[READY EFFECT] postMessage failed', stage, e);
+        }
+      };
+
+      send('immediate');
+
+      readyRetryTimer1.current = window.setTimeout(() => {
+        if (!readyAckedRef.current) send('retry1');
+      }, 300);
+
+      readyRetryTimer2.current = window.setTimeout(() => {
+        if (!readyAckedRef.current) send('retry2');
+      }, 1000);
+    }
+    return () => {
+      if (readyRetryTimer1.current) { clearTimeout(readyRetryTimer1.current as any); readyRetryTimer1.current = null; }
+      if (readyRetryTimer2.current) { clearTimeout(readyRetryTimer2.current as any); readyRetryTimer2.current = null; }
+    };
+  }, [isAssetsLoading, isSceneLoading, isViewerReady, price, product, groups, safariGraceReady]);
+
+  return null;
+};
+
 const SimpleCameraTour: FunctionComponent<{}> = () => {
   const { isViewerReady, isSceneLoading, setCameraByName } = useZakeke();
   const hasRunRef = useRef(false);
@@ -137,6 +225,7 @@ const App: FunctionComponent<{}> = () => {
         <Layout>
             <ViewerPanel>
                 <ZakekeViewer />
+                <ReadySignal />
                 <SimpleCameraTour />
             </ViewerPanel>
         </Layout>
