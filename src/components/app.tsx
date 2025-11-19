@@ -73,7 +73,11 @@ const zakekeEnvironment = new ZakekeEnvironment();
 
 const __IS_SAFARI__ = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|crios|android/i.test(navigator.userAgent);
 
-const ReadySignal: FunctionComponent<{}> = () => {
+type ReadySignalProps = {
+  onFirstRenderSent?: () => void;
+};
+
+const ReadySignal: FunctionComponent<ReadySignalProps> = ({ onFirstRenderSent }) => {
   const { isAssetsLoading, isSceneLoading, isViewerReady, product, groups, price } = useZakeke();
   const firstRenderPostedRef = useRef(false);
   const readyAckedRef = useRef(false);
@@ -141,6 +145,7 @@ const ReadySignal: FunctionComponent<{}> = () => {
       };
 
       send('immediate');
+      onFirstRenderSent?.();
 
       readyRetryTimer1.current = window.setTimeout(() => {
         if (!readyAckedRef.current) send('retry1');
@@ -221,12 +226,13 @@ const SimpleCameraTour: FunctionComponent<{}> = () => {
 
 const App: FunctionComponent<{}> = () => {
     const bootstrapParameters = getBootstrapParameters();
+    const [readySignalSent, setReadySignalSent] = useState(false);
     return <ZakekeProvider environment={zakekeEnvironment} parameters={bootstrapParameters}>
         <Layout>
             <ViewerPanel>
                 <ZakekeViewer />
-                <ReadySignal />
-                <SimpleCameraTour />
+                <ReadySignal onFirstRenderSent={() => setReadySignalSent(true)} />
+                {readySignalSent && <SimpleCameraTour />}
             </ViewerPanel>
         </Layout>
     </ZakekeProvider>;
