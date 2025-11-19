@@ -75,9 +75,6 @@ const App: FunctionComponent<{}> = () => {
     const bootstrapParameters = getBootstrapParameters();
     return <ZakekeProvider environment={zakekeEnvironment} parameters={bootstrapParameters}>
         <Layout>
-            <SelectorPanel>
-                <Selector />
-            </SelectorPanel>
             <ViewerPanel>
                 <ZakekeViewer />
             </ViewerPanel>
