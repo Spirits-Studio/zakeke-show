@@ -37,17 +37,21 @@ function getBootstrapParameters(): Record<string, any> {
 
 const Layout = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   grid-gap: 40px;
   height: 100%;
   max-height: 100%;
   padding: 40px;
+  align-items: center;
+  justify-items: center;
 
   @media (max-width: 767px) {
     display: flex;
     flex-direction: column;
     padding: 16px;
     gap: 12px;
+    justify-content: center;
+    align-items: center;
   }
 `;
 
@@ -62,10 +66,16 @@ const SelectorPanel = styled.div`
 
 const ViewerPanel = styled.div`
   min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   @media (max-width: 767px) {
     order: 0;
     flex: 0 0 60%;
+    width: 100%;
   }
 `;
 
