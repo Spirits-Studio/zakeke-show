@@ -1,7 +1,6 @@
-import React, { FunctionComponent } from 'react';
+import React, { FunctionComponent, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { ZakekeEnvironment, ZakekeViewer, ZakekeProvider } from 'zakeke-configurator-react';
-import Selector from './selector';
+import { ZakekeEnvironment, ZakekeViewer, ZakekeProvider, useZakeke } from 'zakeke-configurator-react';
 
 // Allow reading bootstrap params that we inject via URL or a window shim
 declare global {
@@ -55,15 +54,6 @@ const Layout = styled.div`
   }
 `;
 
-const SelectorPanel = styled.div`
-  min-height: 0;
-
-  @media (max-width: 767px) {
-    order: 1;
-    flex: 0 0 40%;
-  }
-`;
-
 const ViewerPanel = styled.div`
   min-height: 0;
   width: 100%;
@@ -81,12 +71,73 @@ const ViewerPanel = styled.div`
 
 const zakekeEnvironment = new ZakekeEnvironment();
 
+const SimpleCameraTour: FunctionComponent<{}> = () => {
+  const { isViewerReady, isSceneLoading, setCameraByName } = useZakeke();
+  const hasRunRef = useRef(false);
+  const camAbort = useRef<AbortController | null>(null);
+
+  const waitSceneIdle = useCallback(async (timeout = 1500, interval = 60) => {
+    const start = Date.now();
+    let stable = 0;
+    while (Date.now() - start < timeout) {
+      if (!isSceneLoading) {
+        stable++;
+        if (stable >= 2) break;
+      } else {
+        stable = 0;
+      }
+      await new Promise(r => setTimeout(r, interval));
+    }
+    await new Promise(r => requestAnimationFrame(() => r(null)));
+  }, [isSceneLoading]);
+
+  const moveCamera = useCallback(async (name: string) => {
+    try {
+      await setCameraByName(name);
+    } catch (e) {
+      console.warn('[CameraTour] Failed to set camera', name, e);
+    }
+  }, [setCameraByName]);
+
+  const runTour = useCallback(async () => {
+    if (hasRunRef.current) return;
+    hasRunRef.current = true;
+
+    camAbort.current?.abort();
+    const ctrl = new AbortController();
+    camAbort.current = ctrl;
+
+    const sequence = ['wide_high_back', 'wide_low_front', 'wide_full_front'];
+
+    try {
+      await waitSceneIdle(1500, 60);
+      for (const cam of sequence) {
+        if (ctrl.signal.aborted) return;
+        await moveCamera(cam);
+        if (ctrl.signal.aborted) return;
+        await new Promise(r => setTimeout(r, 900));
+      }
+    } finally {
+      if (camAbort.current === ctrl) camAbort.current = null;
+    }
+  }, [moveCamera, waitSceneIdle]);
+
+  useEffect(() => {
+    if (!isViewerReady) return;
+    runTour();
+    return () => camAbort.current?.abort();
+  }, [isViewerReady, runTour]);
+
+  return null;
+};
+
 const App: FunctionComponent<{}> = () => {
     const bootstrapParameters = getBootstrapParameters();
     return <ZakekeProvider environment={zakekeEnvironment} parameters={bootstrapParameters}>
         <Layout>
             <ViewerPanel>
                 <ZakekeViewer />
+                <SimpleCameraTour />
             </ViewerPanel>
         </Layout>
     </ZakekeProvider>;
