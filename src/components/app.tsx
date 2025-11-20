@@ -64,7 +64,7 @@ const ViewerPanel = styled.div`
 
   @media (max-width: 767px) {
     order: 0;
-    flex: 0 0 60%;
+    flex: 1 1 auto;
     width: 100%;
   }
 `;
