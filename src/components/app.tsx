@@ -167,11 +167,11 @@ const ReadySignal: FunctionComponent<ReadySignalProps> = ({ onFirstRenderSent })
 };
 
 const SimpleCameraTour: FunctionComponent<{}> = () => {
-  const { isViewerReady, isSceneLoading, setCameraByName } = useZakeke();
+  const { isViewerReady, isSceneLoading, setCameraByName, cameras } = useZakeke();
   const hasRunRef = useRef(false);
   const camAbort = useRef<AbortController | null>(null);
 
-  const waitSceneIdle = useCallback(async (timeout = 1500, interval = 60) => {
+  const waitSceneIdle = useCallback(async (timeout = 1500, interval = 60, label = 'idle') => {
     const start = Date.now();
     let stable = 0;
     while (Date.now() - start < timeout) {
@@ -184,12 +184,15 @@ const SimpleCameraTour: FunctionComponent<{}> = () => {
       await new Promise(r => setTimeout(r, interval));
     }
     await new Promise(r => requestAnimationFrame(() => r(null)));
+    // console.log('[CameraTour] waitSceneIdle exit', { label, stable, elapsed: Date.now() - start, isSceneLoading });
   }, [isSceneLoading]);
 
   const moveCamera = useCallback(async (name: string) => {
     try {
       // last two args: keep animation and force transition even if already on that cam
+      // console.log('[CameraTour] Moving to', name);
       await setCameraByName(name, false, true);
+      // console.log('[CameraTour] Moved to', name);
     } catch (e) {
       console.warn('[CameraTour] Failed to set camera', name, e);
     }
@@ -203,17 +206,35 @@ const SimpleCameraTour: FunctionComponent<{}> = () => {
     const ctrl = new AbortController();
     camAbort.current = ctrl;
 
-    const sequence = ['wide_high_back', 'wide_low_front', 'wide_full_front'];
+    // Only keep cameras that exist in the scene to avoid stalled sequences
+    const availableNames = new Set(
+      Array.isArray(cameras)
+        ? cameras.map((c: any) => (typeof c?.name === 'string' ? c.name : '')).filter(Boolean)
+        : []
+    );
+    const sequence = ['wide_high_back', 'wide_low_front', 'wide_full_front'].filter(name => {
+      const ok = availableNames.size === 0 || availableNames.has(name);
+      if (!ok) console.warn('[CameraTour] Skipping missing camera', name, { available: Array.from(availableNames) });
+      return ok;
+    });
+    // console.log('[CameraTour] Sequence', sequence, { available: Array.from(availableNames) });
+    if (!sequence.length) return;
 
     try {
-      await waitSceneIdle(1500, 60);
+      // console.log('[CameraTour] Waiting for scene idle');
+      await waitSceneIdle(1500, 60, 'start');
+      // console.log('[CameraTour] Scene idle, starting sequence');
       for (const cam of sequence) {
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted) { console.log('[CameraTour] Aborted before move'); return; }
         await moveCamera(cam);
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted) { console.log('[CameraTour] Aborted after move'); return; }
         await new Promise(r => setTimeout(r, 900));
-        await waitSceneIdle(1200, 80);
+        // console.log('[CameraTour] Idle wait after', cam);
+        await waitSceneIdle(1200, 80, `after-${cam}`);
       }
+      // console.log('[CameraTour] Sequence complete');
+    } catch (err) {
+      console.error('[CameraTour] Sequence error', err);
     } finally {
       if (camAbort.current === ctrl) camAbort.current = null;
     }
@@ -222,8 +243,9 @@ const SimpleCameraTour: FunctionComponent<{}> = () => {
   useEffect(() => {
     if (!isViewerReady) return;
     runTour();
-    return () => camAbort.current?.abort();
   }, [isViewerReady, runTour]);
+
+  useEffect(() => () => camAbort.current?.abort(), []);
 
   return null;
 };
