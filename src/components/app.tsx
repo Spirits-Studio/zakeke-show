@@ -40,14 +40,14 @@ const Layout = styled.div`
   grid-gap: 40px;
   height: 100%;
   max-height: 100%;
-  padding: 40px;
+  padding: 0px 40px;
   align-items: center;
   justify-items: center;
 
   @media (max-width: 767px) {
     display: flex;
     flex-direction: column;
-    padding: 16px;
+    padding: 0px 16px;
     gap: 12px;
     justify-content: center;
     align-items: center;
