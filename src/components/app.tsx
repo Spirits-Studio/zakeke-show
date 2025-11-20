@@ -188,7 +188,8 @@ const SimpleCameraTour: FunctionComponent<{}> = () => {
 
   const moveCamera = useCallback(async (name: string) => {
     try {
-      await setCameraByName(name);
+      // last two args: keep animation and force transition even if already on that cam
+      await setCameraByName(name, false, true);
     } catch (e) {
       console.warn('[CameraTour] Failed to set camera', name, e);
     }
@@ -211,6 +212,7 @@ const SimpleCameraTour: FunctionComponent<{}> = () => {
         await moveCamera(cam);
         if (ctrl.signal.aborted) return;
         await new Promise(r => setTimeout(r, 900));
+        await waitSceneIdle(1200, 80);
       }
     } finally {
       if (camAbort.current === ctrl) camAbort.current = null;
