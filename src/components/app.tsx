@@ -43,6 +43,7 @@ const Layout = styled.div`
   padding: 0px 40px;
   align-items: center;
   justify-items: center;
+  overflow: hidden;
 
   @media (max-width: 767px) {
     display: flex;
@@ -61,6 +62,7 @@ const ViewerPanel = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 
   @media (max-width: 767px) {
     order: 0;
